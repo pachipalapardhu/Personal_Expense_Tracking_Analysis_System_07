@@ -78,10 +78,12 @@ def auth_connection():
     return database.get_db_connection()
 
 
+
 def send_otp_email(recipient, otp):
     import os
     import json
     import urllib.request
+    import urllib.error
 
     api_key = os.getenv('RESEND_API_KEY')
 
@@ -89,10 +91,14 @@ def send_otp_email(recipient, otp):
         raise RuntimeError('RESEND_API_KEY is not configured.')
 
     data = {
-        "from": "Your App <onboarding@resend.dev>",
+        "from": "Personal Expense Tracker <onboarding@resend.dev>",
         "to": [recipient],
         "subject": "Your Personal Expense Tracker verification code",
-        "text": f"Your OTP is {otp}. It is valid for 10 minutes. Do not share this code with anyone."
+        "text": (
+            f"Your OTP is {otp}. "
+            "It is valid for 10 minutes. "
+            "Do not share this code with anyone."
+        )
     }
 
     request = urllib.request.Request(
@@ -100,19 +106,24 @@ def send_otp_email(recipient, otp):
         data=json.dumps(data).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "User-Agent": "Personal-Expense-Tracker/1.0"
         },
         method="POST"
     )
 
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
-            print("Resend response:", response.read().decode("utf-8"))
+            result = response.read().decode("utf-8")
+            app.logger.info("Resend email response: %s", result)
 
     except urllib.error.HTTPError as e:
         error_details = e.read().decode("utf-8", errors="replace")
-        print("RESEND ERROR:", e.code, error_details)
-        raise RuntimeError(f"Resend error {e.code}: {error_details}") from e
+        app.logger.exception("Resend HTTP error: %s", error_details)
+        raise RuntimeError(
+            f"Resend error {e.code}: {error_details}"
+        ) from e
+
 
 
 # Database tables are prepared by `python init_db.py` during deployment.
