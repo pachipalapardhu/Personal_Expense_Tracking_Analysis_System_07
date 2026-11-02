@@ -190,9 +190,9 @@ def register():
             conn.close()
         try:
             send_otp_email(email, otp)
-        except Exception:
-            app.logger.exception('OTP email delivery failed')
-            flash('We could not send the verification email. Check the SMTP settings and try again.', 'error')
+        except Exception as e:
+            app.logger.exception("OTP email delivery failed: %s", str(e))
+            flash(f"Email error: {str(e)}", "danger")
             return render_template('auth.html', mode='register')
         session['pending_email'] = email
         flash('A six-digit verification code has been sent to your email. It expires in 10 minutes.', 'success')
