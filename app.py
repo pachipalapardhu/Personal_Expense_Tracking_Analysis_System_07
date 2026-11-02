@@ -79,50 +79,49 @@ def auth_connection():
 
 
 
+
 def send_otp_email(recipient, otp):
-    import os
-    import json
-    import urllib.request
-    import urllib.error
+    """Send OTP verification email using Gmail SMTP."""
 
-    api_key = os.getenv('RESEND_API_KEY')
+    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+    smtp_port = int(os.getenv('SMTP_PORT', '587'))
+    smtp_user = os.getenv('SMTP_USER')
+    smtp_password = os.getenv('SMTP_PASSWORD')
+    smtp_from = os.getenv('SMTP_FROM', smtp_user)
 
-    if not api_key:
-        raise RuntimeError('RESEND_API_KEY is not configured.')
+    if not smtp_user or not smtp_password:
+        raise RuntimeError('Gmail SMTP credentials are not configured.')
 
-    data = {
-        "from": "Personal Expense Tracker <onboarding@resend.dev>",
-        "to": [recipient],
-        "subject": "Your Personal Expense Tracker verification code",
-        "text": (
-            f"Your OTP is {otp}. "
-            "It is valid for 10 minutes. "
-            "Do not share this code with anyone."
-        )
-    }
+    msg = EmailMessage()
+    msg['Subject'] = 'Your Personal Expense Tracker Verification Code'
+    msg['From'] = smtp_from
+    msg['To'] = recipient
 
-    request = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data=json.dumps(data).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "Personal-Expense-Tracker/1.0"
-        },
-        method="POST"
+    msg.set_content(
+        f"""Hello,
+
+Your Personal Expense Tracker verification code is: {otp}
+
+This OTP is valid for 10 minutes.
+
+Do not share this code with anyone.
+
+Thank you,
+Personal Expense Tracker Team
+"""
     )
 
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            result = response.read().decode("utf-8")
-            app.logger.info("Resend email response: %s", result)
+    context = ssl.create_default_context()
 
-    except urllib.error.HTTPError as e:
-        error_details = e.read().decode("utf-8", errors="replace")
-        app.logger.exception("Resend HTTP error: %s", error_details)
-        raise RuntimeError(
-            f"Resend error {e.code}: {error_details}"
-        ) from e
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+        server.login(smtp_user, smtp_password)
+        server.send_message(msg)
+
+    app.logger.info("OTP email successfully sent to %s", recipient)
+
 
 
 
