@@ -105,9 +105,14 @@ def send_otp_email(recipient, otp):
         method="POST"
     )
 
-    with urllib.request.urlopen(request, timeout=20) as response:
-        if response.status not in (200, 201):
-            raise RuntimeError("Email sending failed.")
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            print("Resend response:", response.read().decode("utf-8"))
+
+    except urllib.error.HTTPError as e:
+        error_details = e.read().decode("utf-8", errors="replace")
+        print("RESEND ERROR:", e.code, error_details)
+        raise RuntimeError(f"Resend error {e.code}: {error_details}") from e
 
 
 # Database tables are prepared by `python init_db.py` during deployment.
