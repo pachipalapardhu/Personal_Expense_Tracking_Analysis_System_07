@@ -77,30 +77,38 @@ def auth_connection():
     """Use hosted MySQL for accounts so auth data survives serverless invocations."""
     return database.get_db_connection()
 
+
 def send_otp_email(recipient, otp):
-    """Send a short-lived verification code using Gmail SMTP credentials."""
-    host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
-    port = int(os.getenv('SMTP_PORT', '587'))
-    sender = os.getenv('SMTP_FROM') or os.getenv('SMTP_USER')
-    username = os.getenv('SMTP_USER')
-    password = os.getenv('SMTP_PASSWORD')
-    if not all((sender, username, password)):
-        raise RuntimeError('SMTP is not configured. Add SMTP_USER, SMTP_FROM and SMTP_PASSWORD to environment variables.')
-    message = EmailMessage()
-    message['Subject'] = 'Your Personal Expense Tracker verification code'
-    message['From'] = sender
-    message['To'] = recipient
-    message.set_content(
-        f"Your verification code is {otp}. It expires in 10 minutes. "
-        "If you did not request this code, you can safely ignore this email."
+    import os
+    import json
+    import urllib.request
+
+    api_key = os.getenv('RESEND_API_KEY')
+
+    if not api_key:
+        raise RuntimeError('RESEND_API_KEY is not configured.')
+
+    data = {
+        "from": "Your App <onboarding@resend.dev>",
+        "to": [recipient],
+        "subject": "Your Personal Expense Tracker verification code",
+        "text": f"Your OTP is {otp}. It is valid for 10 minutes. Do not share this code with anyone."
+    }
+
+    request = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=json.dumps(data).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        },
+        method="POST"
     )
-    context = ssl.create_default_context()
-    with smtplib.SMTP(host, port, timeout=20) as server:
-        server.ehlo()
-        server.starttls(context=context)
-        server.ehlo()
-        server.login(username, password)
-        server.send_message(message)
+
+    with urllib.request.urlopen(request, timeout=20) as response:
+        if response.status not in (200, 201):
+            raise RuntimeError("Email sending failed.")
+
 
 # Database tables are prepared by `python init_db.py` during deployment.
 # Avoid connecting to the database at import time so Gunicorn can boot and
